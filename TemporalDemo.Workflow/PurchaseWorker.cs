@@ -1,43 +1,30 @@
-using Temporalio.Client;
-using Temporalio.Worker;
-using TemporalDemo.Workflows;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Temporalio.Client;
+using Temporalio.Worker;
 
-namespace TemporalDemo.Worker;
+namespace TemporalDemo.Workflow;
+
 public sealed class PurchaseWorker : BackgroundService
 {
     private readonly ILoggerFactory _loggerFactory;
 
-    public PurchaseWorker(ILoggerFactory loggerFactory)
-    {
-        this._loggerFactory = loggerFactory;
-    }
+    public PurchaseWorker(ILoggerFactory loggerFactory) => _loggerFactory = loggerFactory;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Create an activity instance since we have instance activities. If we had
-        // all static activities, we could just reference those directly.
-        var activities = new PurchaseActivities();
-        
+        var temporalWorkerOptions = new TemporalWorkerOptions(TasksQueue.Purchase);
+        temporalWorkerOptions.AddAllActivities(new PurchaseActivities());
+        temporalWorkerOptions.AddWorkflow<OneClickBuyWorkflow>();
+
         using var worker = new TemporalWorker(
             await TemporalClient.ConnectAsync(new()
             {
                 TargetHost = "localhost:7233",
-                LoggerFactory = _loggerFactory,
+                LoggerFactory = _loggerFactory
             }),
-            new(taskQueue: TasksQueue.Purchase)
-            {
-                Activities = { 
-                    activities.StartOrderProcess, 
-                    activities.CheckPayment, 
-                    activities.CheckInventory, 
-                    activities.FulfillOrder, 
-                    activities.ShipOrder },
-                
-                Workflows = { typeof(OneClickBuyWorkflow) },
-            });
-        
+            temporalWorkerOptions);
+
         // Run worker until cancelled
         Console.WriteLine("Running worker");
         try
@@ -46,7 +33,7 @@ public sealed class PurchaseWorker : BackgroundService
         }
         catch (OperationCanceledException ex)
         {
-            Console.WriteLine("Worker cancelled");
+            Console.WriteLine($"Worker cancelled: {ex.GetBaseException().Message}");
         }
     }
 }

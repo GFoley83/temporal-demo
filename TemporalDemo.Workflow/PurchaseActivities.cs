@@ -1,22 +1,20 @@
-﻿using TemporalDemo.Workflows;
-using Temporalio.Activities;
+﻿using Temporalio.Activities;
 using Temporalio.Exceptions;
 
-namespace TemporalDemo.Worker;
+namespace TemporalDemo.Workflow;
 
-public record Purchase(string ItemID, string UserID);
+public record Purchase(string ItemId, string UserId);
 
 public class PurchaseActivities
 {
-    public static readonly PurchaseActivities Ref = ActivityRefs.Create<PurchaseActivities>();
-
-    public int Attempts { get; set; } = 0;
+    public int Attempts { get; set; }
 
     [Activity]
-    public async Task StartOrderProcess(Purchase purchase)
+    public Task StartOrderProcess(Purchase purchase)
     {
         PurchaseStatusHelper.SetPurchaseStatus(PurchaseStatusEnum.Initiated.ToString());
         Console.WriteLine("Order initiated");
+        return Task.CompletedTask;
     }
 
     [Activity]
@@ -39,35 +37,35 @@ public class PurchaseActivities
     }
 
     [Activity]
-    public async Task<bool> CheckInventory(bool isExist)
+    public Task<bool> CheckInventory(bool isExist)
     {
         if (isExist)
         {
             Console.WriteLine("Product is exits");
-            PurchaseStatusHelper.SetPurchaseStatus(PurchaseStatusEnum.AvailiableInventory.ToString());
-            return true;
+            PurchaseStatusHelper.SetPurchaseStatus(PurchaseStatusEnum.AvailableInventory.ToString());
+            return Task.FromResult(true);
         }
-        else
-        {
-            Console.WriteLine("Product not exits");
-            PurchaseStatusHelper.SetPurchaseStatus(PurchaseStatusEnum.NotAvailiableInventory.ToString());
-            return false;
-        }
+
+        Console.WriteLine("Product not exits");
+        PurchaseStatusHelper.SetPurchaseStatus(PurchaseStatusEnum.NotAvailableInventory.ToString());
+        return Task.FromResult(false);
     }
 
     [Activity]
-    public async Task FulfillOrder()
+    public Task FulfillOrder()
     {
         // success the request
         PurchaseStatusHelper.SetPurchaseStatus(PurchaseStatusEnum.Fulfilled.ToString());
         Console.WriteLine("Order created");
+        return Task.CompletedTask;
     }
 
     [Activity]
-    public async Task ShipOrder()
+    public Task ShipOrder()
     {
         // success the request
         PurchaseStatusHelper.SetPurchaseStatus(PurchaseStatusEnum.Shipped.ToString());
         Console.WriteLine("Order shipped");
+        return Task.CompletedTask;
     }
 }

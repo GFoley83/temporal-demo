@@ -1,6 +1,5 @@
+using TemporalDemo.Workflow;
 using Temporalio.Client;
-using TemporalDemo.Worker;
-using TemporalDemo.Workflows;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,7 +9,7 @@ builder.Services.AddSingleton(ctx =>
     TemporalClient.ConnectAsync(new()
     {
         TargetHost = "localhost:7233",
-        LoggerFactory = ctx.GetRequiredService<ILoggerFactory>(),
+        LoggerFactory = ctx.GetRequiredService<ILoggerFactory>()
     }));
 
 // start temporal workers
@@ -20,14 +19,12 @@ var app = builder.Build();
 
 app.MapGet("/", async (Task<TemporalClient> clientTask, string? name) =>
 {
-    
     var client = await clientTask;
 
     // Start a workflow
-    var handle = await client.StartWorkflowAsync(
-        OneClickBuyWorkflow.Ref.RunAsync,
-        new Purchase(ItemID: "item1", UserID: "user1"),
-        new(id: "process-order-number-90743812", taskQueue: TasksQueue.Purchase)
+    var handle = await client.StartWorkflowAsync((OneClickBuyWorkflow oneClickBuyWorkflow)
+            => oneClickBuyWorkflow.RunAsync(new("item1", "user1")),
+        new("process-order-number-90743812", TasksQueue.Purchase)
         {
             //RetryPolicy = new()
             //{
@@ -41,32 +38,32 @@ app.MapGet("/", async (Task<TemporalClient> clientTask, string? name) =>
     // business logic
 
     // We can update the purchase if we want
-    await handle.SignalAsync(
-        OneClickBuyWorkflow.Ref.UpdatePurchaseAsync,
-        new Purchase(ItemID: "item2", UserID: "user1"));
+    await handle.SignalAsync(oneClickBuyWorkflow => oneClickBuyWorkflow.UpdatePurchaseAsync(new("item2", "user1")));
 
     // We can cancel it if we want
     //await handle.CancelAsync();
 
     // We can query its status, even if the workflow is complete
-    var currentPurchaseStatus = await handle.QueryAsync(OneClickBuyWorkflow.Ref.CurrentStatus);
+    var currentPurchaseStatus = await handle.QueryAsync(oneClickBuyWorkflow => oneClickBuyWorkflow.CurrentStatus());
     Console.WriteLine(currentPurchaseStatus);
+
+    var currentPurchaseData = await handle.QueryAsync(oneClickBuyWorkflow => oneClickBuyWorkflow.GetCurrentPurchaseData());
+    Console.WriteLine(currentPurchaseData);
 
     // We can also wait on the result (which for our example is the same as query)
     //status = await handle.GetResultAsync();
     //Console.WriteLine($"Purchase workflow result: {status}");
-    
-    return currentPurchaseStatus;
+
+    return new
+    {
+        status = currentPurchaseStatus,
+        currentPurchaseData,
+        handle
+    };
 });
 
-app.MapGet("/history", () =>
-{
-    return PurchaseStatusHelper.GetPurchaseStatusList();
-});
+app.MapGet("/history", PurchaseStatusHelper.GetPurchaseStatusList);
 
-app.MapGet("/clear", () =>
-{
-    return PurchaseStatusHelper.Clear();
-});
+app.MapGet("/clear", PurchaseStatusHelper.Clear);
 
 app.Run();

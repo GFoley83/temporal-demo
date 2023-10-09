@@ -1,17 +1,19 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
+namespace TemporalDemo.Workflow;
+
 public record PurchaseStatus(string Status, DateTimeOffset Timestamp);
 
 public static class PurchaseStatusHelper
 {
-    private static readonly IMemoryCache _cache;
-    private static readonly ILogger<PurchaseStatus> _logger;
+    private static readonly IMemoryCache Cache;
+    private static readonly ILogger<PurchaseStatus> Logger;
 
     static PurchaseStatusHelper()
     {
-        _cache = new MemoryCache(new MemoryCacheOptions());
-        _logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<PurchaseStatus>();
+        Cache = new MemoryCache(new MemoryCacheOptions());
+        Logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<PurchaseStatus>();
     }
 
     public static void SetPurchaseStatus(string status)
@@ -19,24 +21,26 @@ public static class PurchaseStatusHelper
         var statusList = GetPurchaseStatusList();
 
         // Add the current status to the list
-        statusList.Add(new PurchaseStatus(status, DateTimeOffset.UtcNow));
+        statusList.Add(new(status, DateTimeOffset.UtcNow));
 
         // Update the status list in the cache
-        _cache.Set("PurchaseStatus", statusList);
+        Cache.Set("PurchaseStatus", statusList);
 
-        _logger.LogInformation($"Purchase status updated: CurrentStatus={status}, PreviousStatus={statusList[0].Status}");
+        Logger.LogInformation($"Purchase status updated: CurrentStatus={status}, PreviousStatus={statusList[0].Status}");
     }
 
     public static List<PurchaseStatus> GetPurchaseStatusList()
     {
-        var statusList = _cache.Get<List<PurchaseStatus>>("PurchaseStatus");
+        var statusList = Cache.Get<List<PurchaseStatus>>("PurchaseStatus");
 
-        if (statusList != null && statusList.Count > 0)
-            _logger.LogInformation($"Purchase status list retrieved: Count={statusList.Count}");
+        if (statusList is {Count: > 0})
+        {
+            Logger.LogInformation($"Purchase status list retrieved: Count={statusList.Count}");
+        }
         else
         {
-            _logger.LogWarning($"No purchase status list found");
-            statusList = new List<PurchaseStatus>();
+            Logger.LogWarning("No purchase status list found");
+            statusList = new();
         }
 
         return statusList;
@@ -45,7 +49,7 @@ public static class PurchaseStatusHelper
     public static List<PurchaseStatus> Clear()
     {
         var statusList = new List<PurchaseStatus>();
-        _cache.Set("PurchaseStatus", statusList);
+        Cache.Set("PurchaseStatus", statusList);
 
         return statusList;
     }
